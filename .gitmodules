@@ -1,0 +1,3 @@
+[submodule "hook_lib"]
+	path = hook_lib
+	url = https://bitbucket.org/mambda/hook_lib

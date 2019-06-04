@@ -1,213 +1,169 @@
-#include "../hook_lib/hook_lib/hooklib.hpp"
 #include "PacketDefs.hpp"
-#include <ws2def.h>
-#include <ctime>
-#include <chrono>
-#include <iostream>
-#include <fstream>
-#include <intrin.h>
-
-#define PACKET_DUMP_LOC "C:\\Users\\Anderson\\Desktop\\PACKET_DUMPS\\"
+#include "Utility.hpp"
 
 Utility::HookManager * Utility::pHookManager;
 #define pHM Utility::pHookManager
 FILE * pConsole = 0;
 
-char * GetTime( )
+const static int log_ids = 0;
+const static int log_bytes = 0;
+
+void DecryptionHook( Utility::x86Registers* pRegs ) // not realya  decrypt hook but whatever.
 {
-	std::tm now;
-	std::time_t xd = time( 0 );
-	localtime_s( &now, &xd );
-	auto cnow = std::chrono::system_clock::now( );
-	auto sec = std::chrono::time_point_cast< std::chrono::seconds >( cnow );
-	auto fraction = cnow - sec;
-	auto ms = std::chrono::duration_cast< std::chrono::milliseconds >( fraction );
-
-
-	char * buffer = new char[ 50 ];
-	memset( buffer, 0, 50 );
-	sprintf_s( buffer, 50, "%02d-%02d-%03d", now.tm_min, now.tm_sec, ms.count( ) );
-	return buffer;
-}
-
-void SendHook( Utility::x86Registers* pRegs )
-{
-	Log( "SEND" );
-}
-
-void RecvHook( Utility::x86Registers* pRegs )
-{
-	Log( "RECV" );
-}
-
-void WSASendHook( Utility::x86Registers* pRegs )
-{
-	Log( "WSASEND" );
-}
-
-void WSARecvHook( Utility::x86Registers* pRegs )
-{
-	Log( "WSARECV" );
-}
-
-//void memcpyHook( Utility::x86Registers* pRegs )
-//{ 
-//	//auto destStr = (char*)pRegs->edi;
-//	//auto srcStr = (char*)pRegs->esi;
-//	auto srcStr = ( char* ) pRegs->stack[ 5 ];
-//	if ( pRegs->stack[ 5 ] == 0 )
-//		return;
-//
-//	if ( !_stricmp( srcStr, "lovelysun" ) )
-//	{
-//		auto ret = pRegs->stack[ 3 ];
-//		if( ret == (void*)0x00F31BC4 )
-//			pRegs->stack[ 5 ] = (void*)"sumochop!";
-//		else
-//			pRegs->stack[ 5 ] = ( void* )"greatape!";
-//
-//		Log( "Copying testballs, return address == %p", pRegs->stack[3] );
-//	}
-//}
-
-void SendPacketHook( Utility::x86Registers* pRegs )
-{
-//0x00F5AE30
-	auto pSocketStruct = ( SocketStruct* ) pRegs->ecx; // double check these stack[ 1 + 4 ] shits
-	auto pBDPS = ( BDPS* ) pRegs->stack[ 3 ];
-
-	Log( "Called from %p with sock struct %p, bdps %p", pRegs->stack[ 0 + 4 ], pSocketStruct, pBDPS );
-	//auto cur_time = GetTime( );
-	//char file_name[ 250 ] = { 0 };
-	//auto buffers = pBDPS->packets_start;
-
-	//sprintf_s( file_name, "%s%s_size-%03X_%p.bin", PACKET_DUMP_LOC, cur_time, buffers[ 0 ].len, pSocketStruct );
-
-	//std::ofstream out_buffer( file_name, std::ios::binary );
-	//out_buffer.write( buffers[ 0 ].buf, buffers[ 0 ].len );
-	//out_buffer.close( );
-}
-
-void InitializePacketHook( Utility::x86Registers* pRegs )
-{
-	struct PacketBitch
+	auto pSocketStruct = ( SocketStruct* ) pRegs->ebp;
+	auto size = pRegs->edi;
+	if ( size > 0 )
 	{
-		char pad[ 8 ];
-		char * pData;
-	};
+		auto pPacket = pSocketStruct->pReceived->pUnencryptedData; // this is not quite done! TODO: Find places that access the read-encrypted data
+		if ( pPacket )
+		{
+			//Log( "%X", size );
+			//auto cur_time = GetTime( );
+			//char uFileName[ 250 ] = { 0 };
+			//sprintf_s( uFileName, "%s_size-%03X_RECV", cur_time, size );
+			//Utility::DumpPacket( pPacket->pData, size, uFileName );
 
-	struct PacketMaster
-	{
-		int data_offset;
-		int data_length;
-		PacketBitch* packet_data;
-	};
+			auto pHeader = ( PacketHeader* ) pPacket->pData;
+			auto pData = pHeader->GetPacketData( );
+			if ( !pData )
+			{
+				Utility::DumpPacket( pPacket->pData, size, "bad_header" );
+			}
 
+			if ( log_ids )
+				Log( "RECV ID: 0x%02X", pHeader->packet_id & 0xFFFF );
 
-	auto pMaster = ( PacketMaster* ) pRegs->ecx;
-	auto dataStart = pMaster->data_offset + pMaster->packet_data->pData;
-	if ( !_stricmp( dataStart, "testing" ) )
-	{
-		//__debugbreak( );
-		Log( "Found testing string, return address %p", pRegs->stack[ 2 ] );
+			if ( pHeader->packet_id == 0x3900 ) // these sizes vary, but i can make out position in quite a few of them. Need to get their data, DUH
+			{
+				//Log( "MOVE PKT" );
+				if ( log_bytes )
+				{
+					auto start = ( uintptr_t ) pData;
+					auto difference = start - ( uintptr_t ) pPacket->pData;
+					auto final_size = size - difference;
+					for ( int i = 0; i < final_size; i++ )
+					{
+						if ( i < 19 )
+							continue;
+						printf_s( "%02X", ( ( char* ) start )[ i ] & 0xFF );
+						if ( i == 2 || i == 18 || i == 22 || i == 26 || i == 30 )
+							printf_s( " %d ", i );
+
+					}
+					puts( "" );
+				}
+
+#pragma pack(push, 1)
+				struct MoveTest
+				{
+					PAD( 0x13 );
+					float x;
+					float y;
+					float z;
+				};
+#pragma pack(pop)
+
+				MoveTest * pTest = ( MoveTest* ) pData;
+				printf_s( "%.2f %.2f %.2f\n", pTest->x, pTest->y, pTest->z );
+				// POS PACKET
+			}
+
+		}
+		else
+		{
+			Log( "NO PACKET, HOW?" );
+		}
 	}
-
+	else
+	{
+		Log( "Size zero??" );
+	}
 }
 
 void EncryptionHook( Utility::x86Registers* pRegs )
 {
-	//004583B0 -- Encryption Begins here. If we hook here, grab from eax (or esp+8), and subtract 0x6C and cast it to a PACKET_ENCRYPTION_ROUTE, we can access unencrypted and encrypted data with konwn size!
+	//	004583B0 -- Encryption Begins here. If we hook here, grab from eax (or esp+8), and subtract 0x6C and cast it to a PACKET_ENCRYPTION_ROUTE, we can access unencrypted and encrypted data with konwn size!
 	// better to hook here, we cant get encrypted data at the start! 00458421, using this one, subtract 0xC from eax/ecx
+	// Changed my mind, go hook from start (004583B0), get SocketStruct from EBP - 0xA8, we can then get sent and received packets unencrypted i think??
 
 	//auto pEncryptionStruct = ( PacketEncryptionStuff* ) ( pRegs->eax - 0x6C ); // can also find on stack[ 4 ], if you us this one subtract 0x54 instead
 	auto pEncryptionStruct = ( PacketEncryptionStuff* ) ( pRegs->eax - 0xC );
-	Log( "Encryption struct at %p", pEncryptionStruct );
+	auto pSocketStruct = ( SocketStruct* ) ( pRegs->ebp - 0xA8 );
+	auto pDecryptedSend = pSocketStruct->pDecryptedSendPacket->pData;
+	//Log( "Encryption struct at %p", pEncryptionStruct );
 
-	auto cur_time = GetTime( );
-	char uFileName[ 250 ] = { 0 };
+	PacketHeader * pSendPacketHeader = ( PacketHeader* ) pDecryptedSend;
 
-	sprintf_s( uFileName, "%s%s_size-%03X_unencrypted.bin", PACKET_DUMP_LOC, cur_time, pEncryptionStruct->unencrypted_size );
-
-	std::ofstream out_buffer( uFileName, std::ios::binary );
-	out_buffer.write( pEncryptionStruct->unencryptedData->pData, pEncryptionStruct->unencrypted_size );
-	out_buffer.close( );
-	sprintf_s( uFileName, "%s%s_size-%03X_encrypted.bin", PACKET_DUMP_LOC, cur_time, pEncryptionStruct->unencrypted_size );
-	out_buffer.open( uFileName, std::ios::binary );
-	out_buffer.write( pEncryptionStruct->encryptedData->pData, pEncryptionStruct->unencrypted_size + 1 );
-	out_buffer.close( );
-}
-
-void WSASendToHook( Utility::x86Registers* pRegs )
-{
-	//pRegs->stack[ 2] = first param
-	auto buffers = ( LPWSABUF ) pRegs->stack[ 3 ];
-	auto buffer_count = ( int ) pRegs->stack[ 4 ];
-
-	//Log( "Sending %d buffers", buffer_count );
-	for ( int i = 0; i < buffer_count; i++ )
+	if ( pSendPacketHeader->IsTypeTwo( ) )
 	{
-		//auto packetEnd = buffers[ i ].buf;
-		//packetEnd += buffers[ i ].len;
-		//packetEnd -= sizeof( "test" );
-		OCCSendTextPacket * pPacket = ( OCCSendTextPacket* ) buffers[ i ].buf; // we do not catch things smaller than 4 letters
-
-		if ( buffers[ i ].len >= sizeof( OCCSendTextPacket::small_checksum ) && ( pPacket->small_checksum.header.id == pPacket->id || pPacket->big_checksum.header.id == pPacket->id ) )
+		auto pData = pSendPacketHeader->GetPacketData( );
+		if ( pData == nullptr )
 		{
-			//Log( "Text packet!" );
-			//// Going to hunt down packet creation by finding text packets
-
-			//Log( "Buffer %d] %p", i, &buffers[ i ] );
 			//auto cur_time = GetTime( );
-			//char file_name[ 250 ] = { 0 };
-			//sprintf_s( file_name, "%s%s_size-%03X_%d.bin", PACKET_DUMP_LOC, cur_time, buffers[ i ].len, i );
+			//char uFileName[ 250 ] = { 0 };
+			//sprintf_s( uFileName, "%s_size-%03X_no_match.bin", cur_time, pEncryptionStruct->unencrypted_size );
+			//Utility::DumpPacket( pEncryptionStruct->unencryptedData->pData, pEncryptionStruct->unencrypted_size, uFileName );
+			// Log unknown packets with flag 0x6... header flag
+		}
+		else
+		{
+			if ( log_ids )
+				Log( "Type 2 ID: 0x%02X", pSendPacketHeader->packet_id & 0xFFFF );
 
-			//std::ofstream out_buffer( file_name, std::ios::binary );
-			//out_buffer.write( buffers[ i ].buf, buffers[ i ].len );
-			//out_buffer.close( );
+			if ( pSendPacketHeader->packet_id == 0x4B00 )
+			{
+				// JUMP
+				//auto cur_time = GetTime( );
+				//char uFileName[ 250 ] = { 0 };
+				//sprintf_s( uFileName, "%s_%02X_JUMP.bin", cur_time, pEncryptionStruct->unencrypted_size, pPacketHeader->packet_id );
+				//Utility::DumpPacket( pEncryptionStruct->unencryptedData->pData, pEncryptionStruct->unencrypted_size, uFileName );
+			}
+			else if ( pSendPacketHeader->packet_id == 0x2E00 )
+			{
+				// VELOCITY
+
+				if ( log_bytes )
+				{
+					auto start = ( ( uintptr_t ) pData + 20 );
+					auto difference = start - ( uintptr_t ) pSendPacketHeader;
+					auto final_size = pEncryptionStruct->unencrypted_size - difference;
+					for ( int i = 0; i < final_size; i++ )
+					{
+						printf_s( "%02X", ( ( char* ) start )[ i ] & 0xFF );
+						if ( i == 1 || i == 5 || i == 9 || i == 13 || i == 17 || i == 21 )
+							printf_s( " " );
+
+					}
+					puts( "" );
+				}
+
+				//auto cur_time = GetTime( );
+				//char uFileName[ 250 ] = { 0 };
+				//sprintf_s( uFileName, "%s_%02X_POS.bin", cur_time, pEncryptionStruct->unencrypted_size, pPacketHeader->packet_id );
+				//Utility::DumpPacket( pEncryptionStruct->unencryptedData->pData, pEncryptionStruct->unencrypted_size, uFileName );
+			}
 		}
 	}
+	else
+	{
+		// fixed size packet
+		if ( log_ids )
+			Log( "Type 1 ID: ID %02X", pSendPacketHeader->packet_id & 0xFFFF );
+	}
 
-	//Log( "Send complete" );
-	//Log( "WSASENDTO" );
+	/*
+		auto cur_time = GetTime( );
+		char uFileName[ 250 ] = { 0 };
+		sprintf_s( uFileName, "%s%s_size-%03X_unencrypted.bin", PACKET_DUMP_LOC, cur_time, pEncryptionStruct->unencrypted_size );
+		std::ofstream out_buffer( uFileName, std::ios::binary );
+		out_buffer.write( pEncryptionStruct->unencryptedData->pData, pEncryptionStruct->unencrypted_size );
+		out_buffer.close( );
+		sprintf_s( uFileName, "%s%s_size-%03X_encrypted.bin", PACKET_DUMP_LOC, cur_time, pEncryptionStruct->unencrypted_size );
+		out_buffer.open( uFileName, std::ios::binary );
+		out_buffer.write( pEncryptionStruct->encryptedData->pData, pEncryptionStruct->unencrypted_size + 1 );
+		out_buffer.close( );
+	*/
 }
-
-void WSARecvFromHook( Utility::x86Registers* pRegs )
-{
-	//Log( "WSARECVFROM" );
-}
-
-//std::ofstream outLog;
-//
-//void printfHook( Utility::x86Registers* pRegs )
-//{
-//	if ( outLog.is_open( ) == false )
-//		outLog.open( PACKET_DUMP_LOC"\\dumped_log.log", std::ios::trunc );
-//
-//	//00F29110
-//	auto fmt = ( char* ) pRegs->ecx;
-//
-//	char buffer[ 500 ] = { 0 };
-//	sprintf_s( buffer, "%s from address %p", fmt, pRegs->stack[ 0 ] );
-//	Log( "%s", buffer );
-//	outLog << buffer << "\n\n";
-//	outLog.flush( );
-//}
-//
-//void LogHook( Utility::x86Registers* pRegs /*char * format*/ )
-//{
-//	//if ( outLog.is_open( ) == false )
-//		//outLog.open( PACKET_DUMP_LOC"\\dumped_log.log", std::ios::trunc );
-//
-//	auto format = ( char* ) pRegs->stack[ 3 ];
-//	auto retAddr = pRegs->stack[ 2 ];
-//
-//	//char buffer[ 500 ] = { 0 };
-//	//sprintf_s( buffer, "Logged %s from address %p", format, retAddr );
-//	//Log( "%s", buffer );
-//	//outLog << buffer << "\n";
-//	//outLog.flush( );
-//}
-
 
 unsigned long __stdcall MainShit( PVOID ctx )
 {
@@ -217,70 +173,49 @@ unsigned long __stdcall MainShit( PVOID ctx )
 
 	Log( "Hooking Send & Recv functions daddy" );
 
-	auto ws32 = GetModuleHandleA( "WS2_32.dll" );
-	Log( "ws2_32 at %p", ws32 );
+	//auto ws2_32 = GetModuleHandleA( "WS2_32.dll" );
+	//auto ws32 = GetModuleHandleA( "WSOCK32.dll" );
+	//auto send = GetProcAddress( ws2_32, "send" );
+	//auto recv = GetProcAddress( ws2_32, "recv" );
+	//auto recvfrom = GetProcAddress( ws32, "recvfrom" );
+	//auto WSASend = GetProcAddress( ws2_32, "WSASend" );
+	//auto WSARecv = GetProcAddress( ws2_32, "WSARecv" );
+	//auto WSASendTo = GetProcAddress( ws2_32, "WSASendTo" );
+	//auto WSARecvFrom = GetProcAddress( ws2_32, "WSARecvFrom" );
 
-	auto send = GetProcAddress( ws32, "send" );
-	Log( "send at %p", send );
-	auto recv = GetProcAddress( ws32, "recv" );
-	Log( "recv at %p", recv );
 
-	auto WSASend = GetProcAddress( ws32, "WSASend" );
-	Log( "WSASend at %p", WSASend );
-	auto WSARecv = GetProcAddress( ws32, "WSARecv" );
-	Log( "WSARecv at %p", WSARecv );
-
-	auto WSASendTo = GetProcAddress( ws32, "WSASendTo" );
-	Log( "WSASendTo at %p", WSASendTo );
-	auto WSARecvFrom = GetProcAddress( ws32, "WSARecvFrom" );
-	Log( "WSARecvFrom at %p", WSARecvFrom );
-
-	pHM->HookFunctionExt( ( uintptr_t ) send, ( uintptr_t ) SendHook );
-	pHM->HookFunctionExt( ( uintptr_t ) recv, ( uintptr_t ) RecvHook );
-
-	pHM->HookFunctionExt( ( uintptr_t ) WSASend, ( uintptr_t ) WSASendHook );
-	pHM->HookFunctionExt( ( uintptr_t ) WSARecv, ( uintptr_t ) WSARecvHook );
-
-	pHM->HookFunctionExt( ( uintptr_t ) WSASendTo, ( uintptr_t ) WSASendToHook );
-	pHM->HookFunctionExt( ( uintptr_t ) WSARecvFrom, ( uintptr_t ) WSARecvFromHook );
-
-	//0x00F31B40
-	//pHM->HookFunctionExt( ( uintptr_t ) 0x00F31B40, ( uintptr_t ) InitializePacketHook, 6 );
-	pHM->HookFunctionExt( ( uintptr_t ) 0x00F5AE30, ( uintptr_t ) SendPacketHook, 8 );
+	//pHM->HookFunctionExt( ( uintptr_t ) send, ( uintptr_t ) SendHook );
+	//pHM->HookFunctionExt( ( uintptr_t ) recv, ( uintptr_t ) RecvHook );
+	//pHM->HookFunctionExt( ( uintptr_t ) recvfrom, ( uintptr_t ) RecvFromHook );
+	//pHM->HookFunctionExt( ( uintptr_t ) WSASend, ( uintptr_t ) WSASendHook );
+	//pHM->HookFunctionExt( ( uintptr_t ) WSARecv, ( uintptr_t ) WSARecvHook );
+	//pHM->HookFunctionExt( ( uintptr_t ) WSASendTo, ( uintptr_t ) WSASendToHook );
+	//pHM->HookFunctionExt( ( uintptr_t ) WSARecvFrom, ( uintptr_t ) WSARecvFromHook );
+	//TODO: Sig scan these.
+	// 53 55 56 57 8b 7c 24 14 8b d9 8b 8f b0 04 0 0
+	//pHM->HookFunctionExt( ( uintptr_t ) 0x00F6F920, ( uintptr_t ) SendPacketHook, 8 );
+	
+	
 	//004583B0 -- Encryption Begins here. If we hook here, grab from eax (or esp+8), and subtract 0x54 and cast it to a PACKET_ENCRYPTION_ROUTE, we can access unencrypted and encrypted data with konwn size!
 	// better here: 00458421
-	pHM->HookFunctionExt( ( uintptr_t ) 0x00458421, ( uintptr_t ) EncryptionHook, 7 );
-
-
-	//pHM->HookFunctionExt( 0x00F29110, ( uintptr_t ) printfHook );
-	//pHM->HookFunctionExt( 0x00402FA0, ( uintptr_t ) LogHook, 6 );
+	// 8b 74 24 48 89 4c 24 0c 57 - 0x1B
+	pHM->HookFunctionExt( ( uintptr_t ) 0x004581F0, ( uintptr_t ) EncryptionHook, 7 );
+	// hooking end of recv function, think theyre decrypted by then? Hope so! // ff d0 83 7c 24 18 00 8d 4c
+	pHM->HookFunctionExt( ( uintptr_t ) 0x00F6CC81, ( uintptr_t ) DecryptionHook, 5, false );
 
 	while ( true )
 	{
 		if ( GetAsyncKeyState( VK_END ) & 1 )
 		{
-			//pHM->UnhookFunction( ( uintptr_t ) send );
-			//pHM->UnhookFunction( ( uintptr_t ) recv );
-			//pHM->UnhookFunction( ( uintptr_t ) WSASend );
-			//pHM->UnhookFunction( ( uintptr_t ) WSARecv );
-			//pHM->UnhookFunction( ( uintptr_t ) WSASendTo );
-			//pHM->UnhookFunction( ( uintptr_t ) WSARecvFrom );
-			//pHM->UnhookFunction( ( uintptr_t ) 0x61EC5090 );
-			//pHM->UnhookFunction( ( uintptr_t ) 0x00F5AE30 );
-			//pHM->UnhookFunction( ( uintptr_t ) 0x00F29110 );
 			delete Utility::pHookManager;
 
-
-			//outLog.close( );
 			Log( "Console closed." );
 			fclose( pConsole );
 			FreeConsole( );
 			FreeLibraryAndExitThread( hThis, 0 );
 		}
-
 		Sleep( 1 );
 	}
-
 
 	return 0;
 }

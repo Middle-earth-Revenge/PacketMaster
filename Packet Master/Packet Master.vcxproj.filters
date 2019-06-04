@@ -24,12 +24,24 @@
     <ClCompile Include="..\hook_lib\hook_lib\hooklib.cpp">
       <Filter>Source Files\hooklib</Filter>
     </ClCompile>
+    <ClCompile Include="PacketDefs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Utility.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\hook_lib\hook_lib\hooklib.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PacketDefs.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="standard_includes.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

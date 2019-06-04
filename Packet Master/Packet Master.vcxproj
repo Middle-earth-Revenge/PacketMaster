@@ -116,11 +116,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\hook_lib\hook_lib\hooklib.cpp" />
+    <ClCompile Include="PacketDefs.cpp" />
     <ClCompile Include="source.cpp" />
+    <ClCompile Include="Utility.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\hook_lib\hook_lib\hooklib.hpp" />
     <ClInclude Include="PacketDefs.hpp" />
+    <ClInclude Include="standard_includes.hpp" />
+    <ClInclude Include="Utility.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

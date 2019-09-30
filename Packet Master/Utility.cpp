@@ -24,7 +24,7 @@ void Utility::DumpPacket( char * data, int size, const char * filename )
 {
 	char uFileName[ 250 ] = { 0 };
 	auto cur_time = GetTime( );
-	sprintf_s( uFileName, "%s%s-size-%03d-%s.bin", PACKET_DUMP_LOC, cur_time, size, filename );
+	sprintf_s( uFileName, "%s%s-size-%03X-%s.bin", PACKET_DUMP_LOC, cur_time, size, filename );
 	std::ofstream out_buffer( uFileName, std::ios::binary );
 	out_buffer.write( data, size );
 	out_buffer.close( );

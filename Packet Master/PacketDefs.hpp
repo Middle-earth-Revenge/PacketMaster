@@ -4,10 +4,17 @@
 #define concat2(x,y) x##y
 #define concat(x,y) concat2(x,y)
 #define PAD(x) private: char concat(_pad, __COUNTER__)[x]; public:
+
+#define NO_PADDING() __pragma(pack(push, 1))
+#define RESTORE_PADDING() __pragma(pack(pop))
+
+
 enum HeaderFlags : int
 {
 	TYPE_ONE_TWO = 0x0400000, // xd
+	TYPE_ONE_THREE = 0x800000, // size 0x20
 	TYPE_ONE = 0x2000000,	// encompasses all 0x2... header flags, known packet sizes
+	TYPE_ONE_FOUR = 0x4000000, // 0x40 size
 	/*
 		0x2000008	// full size 1A
 		0x200000B	// full size 26
@@ -15,7 +22,9 @@ enum HeaderFlags : int
 		0x240000B	// full size 2A
 		0x240000F	// full Size 32
 	*/
-	TYPE_TWO = 0x6000000,	// encompasses all 0x6... header flags, unknown size packets, known header sizes
+	TYPE_TWO = 0x6000000,	// encompasses all 0x6... header flags, unknown size packets, known header sizes 
+	//Apparently the 6 means its a data packet.
+
 	/*
 		// 0x6000003 = 0x20 size header
 		// 0x6000000 = 0x14 size header
@@ -27,37 +36,40 @@ enum HeaderFlags : int
 	// all these comments about known/unknown packet sizes are incorrect.
 };
 
+NO_PADDING()
 struct PacketData
 {
-	int packet_start; // varies from shit like 0x10002 to 0x14002, those are the 2 seen so far, found in packets with undetermined sizes
-	PAD( 0x9 );
-	char data_size;
-	char unk;
-	PAD( 8 );
-	short tick_maybe;
+	//char id;
+	//short unk;
 	short id;
+	char modifier; // ?
+	short sequence_id; // 0->whatever
+	short unk_2;
+	char payload_size; // 0x7 // maybe short. Size of actual data for given packet-type
 	// from here is packet-specific data, i.e. text shit
 };
-
+RESTORE_PADDING()
 
 // Usable for Fixed packets, use GetPacketData for non-fixed packets.
 struct PacketHeader
 {
+	int GetHeaderSize( );
 	PacketData * GetPacketData( );
 	bool IsTypeTwo( );
 
 	short session_id;	// 0 no clue, but doesnt change encrypted vs unencrypted.
-	// cant be. 3 recv packets from myself have 3 different values.
-	short packet_id;	// 2 contains some information, if bit 0 is 0, it's a fixed size packet, otherwise size is unknown (i.e. text packet)
+	PAD( 1 );
+	char data_size;	// contains size of packet sans header! (0x14 bytes always)
 	HeaderFlags header_flags;	// 4 Bitfield probably, different values = different size headers and/or different sized packets
 	// Parses header_flags to find the start of the raw packet data (can vary immensely)
+	// Probably not related to size! This is most likely how the packet is meant to be read!!!
 	/* i think header flags is also used to say the exact packet they are if its a fixed packet,
 	why would a fixed-size packet tell you what its size is? No reason unless its predetermined,
 	and if its predetermined, why not use that predetermination to tell you what kind of packet it is?*/
 				// 0 + 0x8 == sequence_id (int or short at 0xA)
 	PAD( 8 ); // 0 + 0xC == checksum
 	short tick_maybe;
-	short id;
+	short _id;
 };
 
 struct PrivateMessagePacket : PacketData
@@ -75,24 +87,6 @@ struct PrivateMessagePacket : PacketData
 	wchar_t recipient[ ];
 };
 
-// OBSOLETE
-struct OCCSendTextPacket
-{
-	static const int id = 0x5C810600;
-
-	PacketHeader header;
-private:
-	char pad[ 0x1E ];
-public:
-	int text_length;
-	char text[ ];
-};
-/*
-	Send buffer comes from
-
-	Argument->258 == WSABUFFERS
-
-*/
 
 struct DataPointer
 {
@@ -120,32 +114,6 @@ struct SocketStruct
 	int32_t bdps_count; //0x00BC
 	ReceivedPacket * pReceived;
 }; //Size: 0x0104
-
-class BDPS_Array
-{
-public:
-	class BDPS *pBDPS; //0x0000
-	char pad_0004[ 52 ]; //0x0004
-}; //Size: 0x0038
-
-class PacketChecksumheader
-{
-public:
-	char header_checksum_shit_idk[ 20 ]; //0x0000
-	char pad_0014[ 256 ]; //0x0014
-}; //Size: 0x0114
-
-class BDPS
-{
-public:
-	class SocketStruct *pParent; //0x0000
-	char pad_0004[ 596 ]; //0x0004
-	WSABUF packets_start[ 10 ]; //0x0258
-	char pad_02A8[ 528 ]; //0x02A8
-	class PacketChecksumheader pChecksum; //0x04B8
-	char pad_05CC[ 432 ]; //0x05CC
-}; //Size: 0x077C
-
 
 
 struct PacketEncryptionStuff

@@ -116,13 +116,19 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\hook_lib\hook_lib\hooklib.cpp" />
+    <ClCompile Include="IPCHandler.cpp" />
     <ClCompile Include="PacketDefs.cpp" />
+    <ClCompile Include="PacketHandler.cpp" />
+    <ClCompile Include="PacketReader.cpp" />
     <ClCompile Include="source.cpp" />
     <ClCompile Include="Utility.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\hook_lib\hook_lib\hooklib.hpp" />
+    <ClInclude Include="IPCHandler.hpp" />
     <ClInclude Include="PacketDefs.hpp" />
+    <ClInclude Include="PacketHandler.hpp" />
+    <ClInclude Include="PacketReader.hpp" />
     <ClInclude Include="standard_includes.hpp" />
     <ClInclude Include="Utility.hpp" />
   </ItemGroup>

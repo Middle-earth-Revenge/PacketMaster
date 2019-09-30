@@ -1,3 +1,6 @@
 [submodule "hook_lib"]
 	path = hook_lib
 	url = https://bitbucket.org/mambda/hook_lib
+[submodule "Gatekeeper"]
+	path = Gatekeeper
+	url = https://bitbucket.org/mambda/gatekeeper/src/master/Gatekeeper/
